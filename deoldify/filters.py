@@ -13,9 +13,7 @@ from deoldify import device as device_settings
 
 class IFilter(ABC):
     @abstractmethod
-    def filter(
-        self, orig_image: PilImage, filtered_image: PilImage, render_factor: int
-    ) -> PilImage:
+    def filter(self, orig_image: PilImage, filtered_image: PilImage, render_factor: int, post_process: bool) -> PilImage:
         pass
 
 
@@ -105,7 +103,6 @@ class ColorizerFilter(BaseFilter):
         hires = np.copy(orig_yuv)
         hires[:, :, 1:3] = color_yuv[:, :, 1:3]
         final = cv2.cvtColor(hires, cv2.COLOR_YUV2BGR)
-        final = PilImage.fromarray(final)
         return final
 
 
