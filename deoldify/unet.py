@@ -1,11 +1,6 @@
-from fastai.layers import *
 from .layers import *
-from fastai.torch_core import *
 from fastai.callbacks.hooks import *
 from fastai.vision import *
-
-
-# The code below is meant to be merged into fastaiv1 ideally
 
 __all__ = ['DynamicUnetDeep', 'DynamicUnetWide']
 
@@ -24,25 +19,12 @@ def _get_sfs_idxs(sizes: Sizes) -> List[int]:
 class CustomPixelShuffle_ICNR(nn.Module):
     "Upsample by `scale` from `ni` filters to `nf` (default `ni`), using `nn.PixelShuffle`, `icnr` init, and `weight_norm`."
 
-    def __init__(
-        self,
-        ni: int,
-        nf: int = None,
-        scale: int = 2,
-        blur: bool = False,
-        leaky: float = None,
-        **kwargs
-    ):
+    def __init__(self, ni: int, nf: int = None, scale: int = 2, leaky: float = None, **kwargs):
         super().__init__()
         nf = ifnone(nf, ni)
-        self.conv = custom_conv_layer(
-            ni, nf * (scale ** 2), ks=1, use_activ=False, **kwargs
-        )
+        self.conv = custom_conv_layer(ni, nf * (scale ** 2), ks=1, use_activ=False, **kwargs)
         icnr(self.conv[0].weight)
         self.shuf = nn.PixelShuffle(scale)
-        # Blurring over (h*w) kernel
-        # "Super-Resolution using Convolutional Neural Networks without Any Checkerboard Artifacts"
-        # - https://arxiv.org/abs/1806.02658
         self.pad = nn.ReplicationPad2d((1, 0, 1, 0))
         self.blur = nn.AvgPool2d(2, stride=1)
         self.relu = relu(True, leaky=leaky)
@@ -53,32 +35,16 @@ class CustomPixelShuffle_ICNR(nn.Module):
 
 
 class UnetBlockDeep(nn.Module):
-    "A quasi-UNet block, using `PixelShuffle_ICNR upsampling`."
-
-    def __init__(
-        self,
-        up_in_c: int,
-        x_in_c: int,
-        hook: Hook,
-        final_div: bool = True,
-        blur: bool = False,
-        leaky: float = None,
-        self_attention: bool = False,
-        nf_factor: float = 1.0,
-        **kwargs
-    ):
+    def __init__(self, up_in_c: int, x_in_c: int, hook: Hook, final_div: bool = True, blur: bool = False, leaky: float = None, self_attention: bool = False,
+                 nf_factor: float = 1.0, **kwargs):
         super().__init__()
         self.hook = hook
-        self.shuf = CustomPixelShuffle_ICNR(
-            up_in_c, up_in_c // 2, blur=blur, leaky=leaky, **kwargs
-        )
+        self.shuf = CustomPixelShuffle_ICNR(up_in_c, up_in_c // 2, leaky=leaky, **kwargs)
         self.bn = batchnorm_2d(x_in_c)
         ni = up_in_c // 2 + x_in_c
         nf = int((ni if final_div else ni // 2) * nf_factor)
         self.conv1 = custom_conv_layer(ni, nf, leaky=leaky, **kwargs)
-        self.conv2 = custom_conv_layer(
-            nf, nf, leaky=leaky, self_attention=self_attention, **kwargs
-        )
+        self.conv2 = custom_conv_layer(nf, nf, leaky=leaky, self_attention=self_attention, **kwargs)
         self.relu = relu(leaky=leaky)
 
     def forward(self, up_in: Tensor) -> Tensor:
@@ -92,21 +58,19 @@ class UnetBlockDeep(nn.Module):
 
 
 class DynamicUnetDeep(SequentialEx):
-    "Create a U-Net from a given architecture."
-
     def __init__(
-        self,
-        encoder: nn.Module,
-        n_classes: int,
-        blur: bool = False,
-        blur_final=True,
-        self_attention: bool = False,
-        y_range: Optional[Tuple[float, float]] = None,
-        last_cross: bool = True,
-        bottle: bool = False,
-        norm_type: Optional[NormType] = NormType.Batch,
-        nf_factor: float = 1.0,
-        **kwargs
+            self,
+            encoder: nn.Module,
+            n_classes: int,
+            blur: bool = False,
+            blur_final=True,
+            self_attention: bool = False,
+            y_range: Optional[Tuple[float, float]] = None,
+            last_cross: bool = True,
+            bottle: bool = False,
+            norm_type: Optional[NormType] = NormType.Batch,
+            nf_factor: float = 1.0,
+            **kwargs
     ):
         extra_bn = norm_type == NormType.Spectral
         imsize = (256, 256)
@@ -171,22 +135,22 @@ class UnetBlockWide(nn.Module):
     "A quasi-UNet block, using `PixelShuffle_ICNR upsampling`."
 
     def __init__(
-        self,
-        up_in_c: int,
-        x_in_c: int,
-        n_out: int,
-        hook: Hook,
-        final_div: bool = True,
-        blur: bool = False,
-        leaky: float = None,
-        self_attention: bool = False,
-        **kwargs
+            self,
+            up_in_c: int,
+            x_in_c: int,
+            n_out: int,
+            hook: Hook,
+            final_div: bool = True,
+            blur: bool = False,
+            leaky: float = None,
+            self_attention: bool = False,
+            **kwargs
     ):
         super().__init__()
         self.hook = hook
         up_out = x_out = n_out // 2
         self.shuf = CustomPixelShuffle_ICNR(
-            up_in_c, up_out, blur=blur, leaky=leaky, **kwargs
+            up_in_c, up_out, leaky=leaky, **kwargs
         )
         self.bn = batchnorm_2d(x_in_c)
         ni = up_out + x_in_c
@@ -209,18 +173,18 @@ class DynamicUnetWide(SequentialEx):
     "Create a U-Net from a given architecture."
 
     def __init__(
-        self,
-        encoder: nn.Module,
-        n_classes: int,
-        blur: bool = False,
-        blur_final=True,
-        self_attention: bool = False,
-        y_range: Optional[Tuple[float, float]] = None,
-        last_cross: bool = True,
-        bottle: bool = False,
-        norm_type: Optional[NormType] = NormType.Batch,
-        nf_factor: int = 1,
-        **kwargs
+            self,
+            encoder: nn.Module,
+            n_classes: int,
+            blur: bool = False,
+            blur_final=True,
+            self_attention: bool = False,
+            y_range: Optional[Tuple[float, float]] = None,
+            last_cross: bool = True,
+            bottle: bool = False,
+            norm_type: Optional[NormType] = NormType.Batch,
+            nf_factor: int = 1,
+            **kwargs
     ):
 
         nf = 512 * nf_factor

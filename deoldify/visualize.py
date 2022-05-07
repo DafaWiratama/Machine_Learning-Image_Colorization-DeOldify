@@ -20,6 +20,10 @@ class ModelImageVisualizer:
         filtered_image = self.filter.filter(orig_image, orig_image, render_factor=render_factor, post_process=post_process)
         return filtered_image
 
+    def __call__(self, x, render_factor: int = None, post_process: bool = True):
+        self._clean_mem()
+        return self.filter.filter(x, x, render_factor=render_factor, post_process=post_process)
+
 
 def get_image_colorizer(root_folder: Path = Path('./'), render_factor: int = 35, artistic: bool = True):
     if artistic:
