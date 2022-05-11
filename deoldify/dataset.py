@@ -10,7 +10,7 @@ def get_colorize_data(
         good_path: Path,
         random_seed: int = None,
         keep_pct: float = 1.0,
-        num_workers: int = 4,
+        num_workers: int = 8,
         stats: tuple = imagenet_stats,
         xtra_tfms=[],
 ) -> ImageDataBunch:
